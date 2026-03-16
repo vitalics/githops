@@ -1,15 +1,20 @@
 name: Release
 
-# Triggered by a version tag push OR manually with a version input.
+# Triggered by a version tag push OR manually by choosing a bump type.
 on:
   push:
     tags:
       - 'v[0-9]*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to release (e.g. 1.2.3, without "v")'
+      bump:
+        description: 'Version bump type'
         required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -28,27 +33,39 @@ jobs:
         with:
           fetch-depth: 0   # full history for changelog
 
+      - name: Resolve version
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Read last tag, then bump the chosen component
+            LATEST=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            LATEST="${LATEST#v}"
+            IFS='.' read -r -a parts <<< "$LATEST"
+            MAJOR="${parts[0]:-0}"
+            MINOR="${parts[1]:-0}"
+            PATCH="${parts[2]:-0}"
+            case "${{ inputs.bump }}" in
+              major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH+1)) ;;
+            esac
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+            # Normalize to major.minor.patch (Cargo requires all three components)
+            IFS='.' read -r -a parts <<< "$VERSION"
+            VERSION="${parts[0]:-0}.${parts[1]:-0}.${parts[2]:-0}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
+
       - name: Create and push tag
         if: github.event_name == 'workflow_dispatch'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "v${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
-
-      - name: Resolve version
-        id: meta
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ inputs.version }}"
-          else
-            VERSION="${GITHUB_REF_NAME#v}"
-          fi
-          # Normalize to major.minor.patch (Cargo requires all three components)
-          IFS='.' read -r -a parts <<< "$VERSION"
-          VERSION="${parts[0]:-0}.${parts[1]:-0}.${parts[2]:-0}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
+          git tag "${{ steps.meta.outputs.tag }}"
+          git push origin "${{ steps.meta.outputs.tag }}"
 
       - name: Generate changelog
         id: changelog
@@ -217,7 +234,7 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ needs.prepare.outputs.tag }}"
-          cargo wix --target x86_64-pc-windows-msvc --profile release --no-build --nocapture
+          cargo wix --package githops --target x86_64-pc-windows-msvc --profile release --no-build --nocapture
           $msi  = Get-ChildItem "target\wix\*.msi" | Select-Object -First 1
           Move-Item $msi.FullName "githops-${tag}-x86_64-pc-windows-msvc.msi"
 
