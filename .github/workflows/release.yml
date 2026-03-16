@@ -36,31 +36,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Node / pnpm (needed by graphui build.rs) ────────────────────────
-      - uses: pnpm/action-setup@v4
+      # ── Node / pnpm ──────────────────────────────────────────────────────
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: latest
-      - uses: actions/setup-node@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
           cache-dependency-path: graphui/ui/pnpm-lock.yaml
 
+      - name: Install UI dependencies
+        run: pnpm --dir graphui/ui install --frozen-lockfile
+
+      # For cross (Docker), build.rs can't run pnpm — pre-build dist/ now.
+      - name: Build UI (cross only)
+        if: matrix.cross == true
+        run: pnpm --dir graphui/ui run build
+
       # ── Rust toolchain ──────────────────────────────────────────────────
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-
-      # ── Pre-build UI for cross targets (cross runs in Docker, no pnpm) ──
-      - name: Pre-build UI (cross only)
-        if: matrix.cross == true
-        run: |
-          cd graphui/ui
-          pnpm install --frozen-lockfile
-          pnpm run build
 
       # ── Install cross for ARM Linux ─────────────────────────────────────
       - name: Install cross
