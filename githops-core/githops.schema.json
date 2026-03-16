@@ -33,6 +33,7 @@
       "type": "string"
     }
   },
+  "x-githops-version": "0.1.0",
   "definitions": {
     "Command": {
       "type": "object",

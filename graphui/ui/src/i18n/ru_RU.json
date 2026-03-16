@@ -24,6 +24,7 @@
     "no_match": "Нет совпадений.",
     "confirm_discard": "Отменить изменения?",
     "docs_link": "Документация Git →",
+    "docs": "доки",
     "config_loaded": "githops.yaml загружен",
     "no_config": "githops.yaml не найден",
     "connecting": "подключение…",

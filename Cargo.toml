@@ -8,6 +8,19 @@ name = "githops"
 version = "0.1.0"
 edition = "2024"
 description = "Git hooks manager with YAML configuration"
+authors = ["Vitali Haradkou <vitalics@gmail.com>"]
+homepage = "https://github.com/vitalics/githops"
+repository = "https://github.com/vitalics/githops"
+license = "MIT"
+keywords = ["git", "hooks", "cli", "yaml", "devtools"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = [
+    "graphui/ui/node_modules/",
+    "graphui/ui/src/",
+    "docs/",
+    ".github/",
+    "*.md",
+]
 
 [lib]
 name = "githops"
@@ -38,5 +51,5 @@ serde_json = "1"
 schemars = { version = "0.8", features = ["derive"] }
 anyhow = "1"
 colored = "2"
-githops-core = { path = "githops-core" }
-graphui = { path = "graphui" }
+githops-core = { path = "githops-core", version = "0.1.0" }
+graphui = { path = "graphui", version = "0.1.0" }

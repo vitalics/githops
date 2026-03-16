@@ -24,6 +24,7 @@
     "no_match": "No commands match the filter.",
     "confirm_discard": "Discard unsaved changes?",
     "docs_link": "Git documentation →",
+    "docs": "docs",
     "config_loaded": "githops.yaml loaded",
     "no_config": "no githops.yaml",
     "connecting": "connecting…",

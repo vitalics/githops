@@ -16,7 +16,11 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "erasableSyntaxOnly": true
+    "erasableSyntaxOnly": true,
+    "baseUrl": ".",
+    "paths": {
+      "@docs/*": ["../../docs/*"]
+    }
   },
   "include": ["src"]
 }

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use githops::cli::{generate_completion, Cli, Commands, CompletionsAction};
+use githops::cli::{generate_completion, CacheAction, Cli, Commands, CompletionsAction, SchemaAction};
 use githops::commands;
 
 fn main() -> Result<()> {
@@ -20,6 +20,13 @@ fn main() -> Result<()> {
                 generate_completion(shell);
                 Ok(())
             }
+        },
+        Commands::Schema { action } => match action {
+            SchemaAction::Sync => commands::schema::sync(),
+        },
+        Commands::Cache { action } => match action {
+            CacheAction::Clear => commands::cache::clear(),
+            CacheAction::List => commands::cache::list(),
         },
     }
 }

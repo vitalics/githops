@@ -4,11 +4,16 @@ use clap_complete::Shell;
 #[derive(Parser)]
 #[command(
     name = "githops",
-    version,
     about = "Git hooks manager with YAML configuration",
-    long_about = None
+    long_about = None,
+    version,
+    disable_version_flag = true,
 )]
 pub struct Cli {
+    /// Print version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: (),
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -16,7 +21,7 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Initialize githops in the current repository.
-    /// Creates githops.yaml and .githops/githops.schema.json
+    /// Creates githops.yaml, .githops/githops.schema.json, and syncs hooks.
     Init,
 
     /// Sync hooks from githops.yaml to .git/hooks/
@@ -66,6 +71,18 @@ pub enum Commands {
         #[command(subcommand)]
         action: CompletionsAction,
     },
+
+    /// Manage the JSON Schema for githops.yaml
+    Schema {
+        #[command(subcommand)]
+        action: SchemaAction,
+    },
+
+    /// Manage the build cache
+    Cache {
+        #[command(subcommand)]
+        action: CacheAction,
+    },
 }
 
 #[derive(Subcommand, Clone, Debug)]
@@ -86,6 +103,22 @@ pub enum CompletionsAction {
         /// Target shell
         shell: Shell,
     },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum SchemaAction {
+    /// Update .githops/githops.schema.json to the version embedded in this binary
+    Sync,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum CacheAction {
+    /// Remove all cache entries
+    Clear,
+
+    /// List all cache entries with their key and age
+    #[command(alias = "ls")]
+    List,
 }
 
 #[derive(ValueEnum, Clone, Debug)]

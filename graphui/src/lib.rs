@@ -70,6 +70,8 @@ async fn async_run(open: bool) -> Result<()> {
 
     let app = Router::new()
         .route("/", get(serve_html))
+        .route("/docs", get(serve_html))
+        .route("/docs/*path", get(serve_html))
         .route("/assets/app.js", get(serve_js))
         .route("/assets/app.css", get(serve_css))
         .route("/ws", get(ws_handler))

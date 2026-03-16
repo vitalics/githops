@@ -9,10 +9,13 @@ pub fn run() -> Result<()> {
 
     if config_path.exists() {
         println!(
-            "{} {} already exists. Use `githops sync` to apply changes.",
+            "{} {} already exists.",
             "warn:".yellow().bold(),
             CONFIG_FILE
         );
+        // Still refresh the schema in case the binary was updated.
+        write_schema(Path::new("."))?;
+        println!("{} {}", "updated:".green().bold(), SCHEMA_FILE);
         return Ok(());
     }
 
@@ -81,9 +84,13 @@ pub fn run() -> Result<()> {
     std::fs::write(config_path, &content)?;
     println!("{} {}", "created:".green().bold(), CONFIG_FILE);
 
+    // Install the example hooks immediately so the repo is ready to use.
+    println!();
+    super::sync::run(false)?;
+
     println!();
     println!(
-        "Edit {} to configure your hooks, then run {}.",
+        "Edit {} to configure your hooks, then run {} to apply changes.",
         CONFIG_FILE.cyan(),
         "githops sync".cyan().bold()
     );

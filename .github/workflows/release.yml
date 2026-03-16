@@ -288,3 +288,100 @@ jobs:
           name:      "githops ${{ needs.prepare.outputs.tag }}"
           body_path: release-body.md
           files:     dist/*
+
+  # ── 4. Distribute ────────────────────────────────────────────────────────────
+  # Publishes to crates.io, npm, and updates the Homebrew tap.
+  # Requires secrets: CARGO_REGISTRY_TOKEN, NPM_TOKEN, HOMEBREW_TAP_TOKEN
+  distribute:
+    needs: [prepare, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      # ── Stamp version ──────────────────────────────────────────────────────
+      - name: Stamp version
+        shell: python3 {0}
+        run: |
+          import re, pathlib
+          version = "${{ needs.prepare.outputs.version }}"
+          for p in ["Cargo.toml", "githops-core/Cargo.toml", "graphui/Cargo.toml"]:
+              text = pathlib.Path(p).read_text()
+              text = re.sub(r'^version = "[^"]*"', f'version = "{version}"', text, count=1, flags=re.M)
+              pathlib.Path(p).write_text(text)
+          # Keep path-dep version constraints in sync
+          for p in ["Cargo.toml", "graphui/Cargo.toml"]:
+              text = pathlib.Path(p).read_text()
+              text = re.sub(r'(githops-core\s*=\s*\{[^}]*version\s*=\s*")[^"]*(")', rf'\g<1>{version}\g<2>', text)
+              text = re.sub(r'(graphui\s*=\s*\{[^}]*version\s*=\s*")[^"]*(")', rf'\g<1>{version}\g<2>', text)
+              pathlib.Path(p).write_text(text)
+
+      # ── Node / pnpm (needed to build graphui for cargo publish) ───────────
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: graphui/ui/pnpm-lock.yaml
+
+      - name: Build UI
+        run: pnpm --dir graphui/ui install --frozen-lockfile && pnpm --dir graphui/ui run build
+
+      # ── Rust toolchain ─────────────────────────────────────────────────────
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      # ── crates.io ──────────────────────────────────────────────────────────
+      - name: Publish githops-core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p githops-core --allow-dirty
+
+      - name: Wait for githops-core to be indexed
+        run: sleep 30
+
+      - name: Publish graphui
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p graphui --allow-dirty
+
+      - name: Wait for graphui to be indexed
+        run: sleep 30
+
+      - name: Publish githops
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p githops --allow-dirty
+
+      # ── npm ────────────────────────────────────────────────────────────────
+      - name: Set up Node.js for npm publish
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Stamp npm package version
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          cd npm
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = process.argv[1];
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          " "$VERSION"
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: cd npm && npm publish --access public
+

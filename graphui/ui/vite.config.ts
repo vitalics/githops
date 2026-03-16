@@ -1,3 +1,4 @@
+import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -6,6 +7,18 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [tailwindcss(), react()],
   base: "/",
+  resolve: {
+    alias: {
+      // Maps @docs/* to <repo-root>/docs/*
+      "@docs": path.resolve(__dirname, "../../docs"),
+    },
+  },
+  server: {
+    fs: {
+      // Allow serving files from the repo root (needed for docs/ outside graphui/ui/)
+      allow: [path.resolve(__dirname, "../..")],
+    },
+  },
   build: {
     outDir: "dist",
     rollupOptions: {

@@ -1,0 +1,26 @@
+{
+  "name": "githops",
+  "version": "0.1.0",
+  "description": "Git hooks manager with YAML configuration",
+  "keywords": ["git", "hooks", "yaml", "cli", "devtools"],
+  "homepage": "https://github.com/vitalics/githops",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vitalics/githops.git"
+  },
+  "license": "MIT",
+  "author": "Vitali Haradkou <vitalics@gmail.com>",
+  "bin": {
+    "githops": "./bin/githops.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "files": [
+    "bin/githops.js",
+    "install.js"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

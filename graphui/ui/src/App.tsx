@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { FlowGraph } from "./components/FlowGraph";
 import { HookPanel } from "./components/HookPanel";
 import { CommandsPanel } from "./components/CommandsPanel";
@@ -55,9 +56,15 @@ export default function App() {
     <div className="flex flex-col h-screen bg-[var(--color-canvas)] text-[var(--color-text)] font-[var(--font-mono)]">
       {/* ── Header ── */}
       <header className="flex items-center gap-3 px-4 py-2 bg-[var(--color-surface)] border-b border-[var(--color-border)] shrink-0">
-        <span className="text-[var(--color-accent)] font-bold text-sm tracking-tight mr-auto">
+        <span className="text-[var(--color-accent)] font-bold text-sm tracking-tight">
           githops graph
         </span>
+        <Link
+          to="/docs"
+          className="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors mr-auto"
+        >
+          docs
+        </Link>
 
         {syncMsg && (
           <span className="text-xs text-[var(--color-muted)]">{syncMsg}</span>

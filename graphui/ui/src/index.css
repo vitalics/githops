@@ -42,3 +42,124 @@
 .react-flow__edge-path {
   stroke: var(--color-accent-dim);
 }
+
+/* ── Documentation prose ──────────────────────────────────────────────────── */
+.prose-docs {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.75;
+}
+.prose-docs h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.02em;
+}
+.prose-docs h2 {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #e0e0f0;
+  margin-top: 2.25rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.25rem;
+}
+.prose-docs h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  margin-top: 1.5rem;
+  margin-bottom: 0.4rem;
+}
+.prose-docs p {
+  margin-bottom: 0.9rem;
+}
+.prose-docs ul,
+.prose-docs ol {
+  margin-left: 1.25rem;
+  margin-bottom: 0.9rem;
+}
+.prose-docs ul {
+  list-style-type: disc;
+}
+.prose-docs ol {
+  list-style-type: decimal;
+}
+.prose-docs li {
+  margin-bottom: 0.25rem;
+}
+.prose-docs code {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+  font-size: 0.8em;
+  color: var(--color-accent);
+}
+.prose-docs pre {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+.prose-docs pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #c8c8e0;
+  font-size: 0.8125rem;
+}
+.prose-docs a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-docs a:hover {
+  opacity: 0.8;
+}
+.prose-docs strong {
+  color: #e0e0f0;
+  font-weight: 600;
+}
+.prose-docs blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 0.75rem;
+  color: var(--color-muted);
+  margin-bottom: 0.9rem;
+}
+.prose-docs hr {
+  border-color: var(--color-border);
+  margin: 1.5rem 0;
+}
+/* GFM tables */
+.prose-docs table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+}
+.prose-docs th {
+  background: var(--color-surface);
+  color: #e0e0f0;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--color-border);
+}
+.prose-docs td {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--color-border);
+  vertical-align: top;
+}
+.prose-docs tr:nth-child(even) td {
+  background: #0a0a1a;
+}
+/* Checkbox lists (GFM task lists) */
+.prose-docs input[type="checkbox"] {
+  accent-color: var(--color-accent);
+  margin-right: 0.4rem;
+}

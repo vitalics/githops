@@ -2,11 +2,16 @@
 name = "graphui"
 version = "0.1.0"
 edition = "2024"
-description = "Web UI for githops graph command (React + Vite)"
-build = "build.rs"
+description = "Web UI for githops graph command (React + Vite, embedded in binary)"
+authors = ["Vitali Haradkou <vitalics@gmail.com>"]
+homepage = "https://github.com/vitalics/githops"
+repository = "https://github.com/vitalics/githops"
+license = "MIT"
+# Include pre-built UI assets so `cargo install githops` works without pnpm.
+include = ["src/**/*", "ui/dist/**/*", "build.rs", "Cargo.toml"]
 
 [dependencies]
-githops-core = { path = "../githops-core" }
+githops-core = { path = "../githops-core", version = "0.1.0" }
 axum = { version = "0.7", features = ["ws"] }
 tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "time"] }
 anyhow = "1"

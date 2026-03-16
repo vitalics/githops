@@ -2,6 +2,13 @@
 name = "githops-core"
 version = "0.1.0"
 edition = "2024"
+description = "Core library for githops — config parsing, hook syncing, caching"
+authors = ["Vitali Haradkou <vitalics@gmail.com>"]
+homepage = "https://github.com/vitalics/githops"
+repository = "https://github.com/vitalics/githops"
+license = "MIT"
+keywords = ["git", "hooks", "yaml", "config"]
+categories = ["development-tools"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
