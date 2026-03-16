@@ -124,6 +124,12 @@ jobs:
               text = pathlib.Path(p).read_text()
               text = re.sub(r'^version = "[^"]*"', f'version = "{version}"', text, count=1, flags=re.M)
               pathlib.Path(p).write_text(text)
+          # Keep path-dep version constraints in sync
+          for p in ["Cargo.toml", "graphui/Cargo.toml"]:
+              text = pathlib.Path(p).read_text()
+              text = re.sub(r'(githops-core\s*=\s*\{[^}]*version\s*=\s*")[^"]*(")', rf'\g<1>{version}\g<2>', text)
+              text = re.sub(r'(graphui\s*=\s*\{[^}]*version\s*=\s*")[^"]*(")', rf'\g<1>{version}\g<2>', text)
+              pathlib.Path(p).write_text(text)
 
       # ── Node / pnpm ──────────────────────────────────────────────────────
       - name: Install pnpm
