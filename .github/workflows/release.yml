@@ -234,6 +234,7 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ needs.prepare.outputs.tag }}"
+          $env:GITHOPS_BIN_PATH = [System.IO.Path]::GetFullPath("target\x86_64-pc-windows-msvc\release\githops.exe")
           cargo wix --package githops --target x86_64-pc-windows-msvc --profile release --no-build --nocapture
           $msi  = Get-ChildItem "target\wix\*.msi" | Select-Object -First 1
           Move-Item $msi.FullName "githops-${tag}-x86_64-pc-windows-msvc.msi"

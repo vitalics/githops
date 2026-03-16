@@ -41,7 +41,7 @@
                             Id='githopsExe'
                             Name='githops.exe'
                             DiskId='1'
-                            Source='$(var.githops_BinPath)'
+                            Source='$(env.GITHOPS_BIN_PATH)'
                             KeyPath='yes' />
                     </Component>
 
