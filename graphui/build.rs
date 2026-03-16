@@ -12,6 +12,18 @@ fn main() {
     println!("cargo:rerun-if-changed=ui/package.json");
     println!("cargo:rerun-if-changed=ui/src");
 
+    // When published to crates.io only ui/dist/ is included, not the UI sources.
+    // Detect this by the absence of ui/package.json and use the pre-built dist/.
+    if !ui_dir.join("package.json").exists() {
+        assert!(
+            dist_dir.join("index.html").exists(),
+            "ui/package.json not found and ui/dist/index.html is missing — \
+             the published crate is missing pre-built assets"
+        );
+        println!("cargo:warning=ui/package.json not found; using pre-built ui/dist/");
+        return;
+    }
+
     let pnpm = if cfg!(windows) { "pnpm.cmd" } else { "pnpm" };
 
     // Check if pnpm is available.
