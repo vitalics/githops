@@ -12,6 +12,7 @@ fn main() -> Result<()> {
         Commands::Destroy => commands::destroy::run(),
         Commands::Migrate { source } => commands::migrate::run(source),
         Commands::Check { hook, args } => commands::check::run(&hook, &args),
+        Commands::SelfUpdate { check } => commands::self_update::run(check),
         Commands::Completions { action } => match action {
             CompletionsAction::Init => commands::completions::init(),
             CompletionsAction::Remove => commands::completions::remove(),

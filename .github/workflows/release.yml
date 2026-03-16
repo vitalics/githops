@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+            cross: true
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Node / pnpm (needed by graphui build.rs) ────────────────────────
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: graphui/ui/pnpm-lock.yaml
+
+      # ── Rust toolchain ──────────────────────────────────────────────────
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # ── Pre-build UI for cross targets (cross runs in Docker, no pnpm) ──
+      - name: Pre-build UI (cross only)
+        if: matrix.cross == true
+        run: |
+          cd graphui/ui
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      # ── Install cross for ARM Linux ─────────────────────────────────────
+      - name: Install cross
+        if: matrix.cross == true
+        run: cargo install cross --locked
+
+      # ── Build ───────────────────────────────────────────────────────────
+      - name: Build
+        shell: bash
+        run: |
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+
+      # ── Package ─────────────────────────────────────────────────────────
+      - name: Package (Unix)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          BIN="target/${{ matrix.target }}/release/githops"
+          ARCHIVE="githops-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"
+          tar czf "$ARCHIVE" -C "$(dirname "$BIN")" "$(basename "$BIN")"
+          echo "ASSET=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Package (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $bin  = "target\${{ matrix.target }}\release\githops.exe"
+          $name = "githops-${{ github.ref_name }}-${{ matrix.target }}.zip"
+          Compress-Archive -Path $bin -DestinationPath $name
+          "ASSET=$name" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # ── Upload to GitHub Release ─────────────────────────────────────────
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET }}
+          generate_release_notes: true

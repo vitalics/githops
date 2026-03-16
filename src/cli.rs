@@ -54,6 +54,13 @@ pub enum Commands {
         args: Vec<String>,
     },
 
+    /// Update githops to the latest release from GitHub
+    SelfUpdate {
+        /// Only check if an update is available without installing it
+        #[arg(long, short)]
+        check: bool,
+    },
+
     /// Manage shell completion scripts
     Completions {
         #[command(subcommand)]
