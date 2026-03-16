@@ -1,0 +1,78 @@
+<?xml version='1.0' encoding='windows-1252'?>
+<!--
+  githops Windows Installer
+  Managed by cargo-wix — https://github.com/volks73/cargo-wix
+  Installs githops.exe to %ProgramFiles%\githops\ and adds it to the system PATH.
+-->
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+    <Product
+        Id='*'
+        Name='githops'
+        UpgradeCode='3F8C92A0-1D4E-5B6F-A7C8-D9E0F1A2B3C4'
+        Language='1033'
+        Codepage='1252'
+        Version='$(var.Version)'
+        Manufacturer='Vitali Haradkou'>
+
+        <Package
+            Id='*'
+            Keywords='Installer'
+            Description='Git hooks manager with YAML configuration'
+            Manufacturer='Vitali Haradkou'
+            InstallerVersion='450'
+            Languages='1033'
+            Compressed='yes'
+            SummaryCodepage='1252'
+            Platform='x64' />
+
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will exit.' />
+
+        <Media Id='1' Cabinet='githops.cab' EmbedCab='yes' />
+
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='ProgramFiles64Folder'>
+                <Directory Id='INSTALLDIR' Name='githops'>
+
+                    <!-- Main binary -->
+                    <Component Id='MainBinary' Guid='*'>
+                        <File
+                            Id='githopsExe'
+                            Name='githops.exe'
+                            DiskId='1'
+                            Source='$(var.githops_BinPath)'
+                            KeyPath='yes' />
+                    </Component>
+
+                    <!-- Add install directory to the system PATH -->
+                    <Component Id='SystemPath' Guid='*'>
+                        <Environment
+                            Id='UpdatePath'
+                            Name='PATH'
+                            Value='[INSTALLDIR]'
+                            Permanent='no'
+                            Part='last'
+                            Action='set'
+                            System='yes' />
+                        <!-- Registry key acts as KeyPath for this component -->
+                        <RegistryValue
+                            Root='HKLM'
+                            Key='Software\githops'
+                            Name='Version'
+                            Value='$(var.Version)'
+                            Type='string'
+                            KeyPath='yes' />
+                    </Component>
+
+                </Directory>
+            </Directory>
+        </Directory>
+
+        <Feature Id='Complete' Title='githops' Level='1'>
+            <ComponentRef Id='MainBinary' />
+            <ComponentRef Id='SystemPath' />
+        </Feature>
+
+    </Product>
+</Wix>

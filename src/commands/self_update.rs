@@ -1,7 +1,7 @@
 use anyhow::Result;
 use colored::Colorize;
 
-const REPO_OWNER: &str = "vitaliharadkou";
+const REPO_OWNER: &str = "vitalics";
 const REPO_NAME: &str = "githops";
 
 pub fn run(check_only: bool) -> Result<()> {

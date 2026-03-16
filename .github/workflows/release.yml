@@ -1,15 +1,71 @@
 name: Release
 
+# Triggered by a version tag push OR manually with a version input.
 on:
   push:
     tags:
       - 'v[0-9]*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 1.2.3, without "v")'
+        required: true
 
 permissions:
   contents: write
 
 jobs:
+  # ── 1. Prepare ─────────────────────────────────────────────────────────────
+  # Creates the git tag (manual runs only), resolves version, builds changelog.
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version:   ${{ steps.meta.outputs.version }}
+      tag:       ${{ steps.meta.outputs.tag }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for changelog
+
+      - name: Create and push tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
+      - name: Resolve version
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          TAG="v${{ steps.meta.outputs.version }}"
+          PREV=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo "")
+          RANGE="${PREV:+$PREV..}$TAG"
+          COMMITS=$(git log "$RANGE" \
+            --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" \
+            2>/dev/null || true)
+          {
+            echo 'changelog<<GITHOPS_CHANGELOG_EOF'
+            echo "$COMMITS"
+            echo 'GITHOPS_CHANGELOG_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+  # ── 2. Build ────────────────────────────────────────────────────────────────
+  # Compiles the binary and creates archives + platform installers.
   build:
+    needs: prepare
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -35,6 +91,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      # ── Stamp version into all Cargo.toml files ──────────────────────────
+      - name: Stamp version
+        shell: python3 {0}
+        run: |
+          import re, pathlib
+          version = "${{ needs.prepare.outputs.version }}"
+          for p in ["Cargo.toml", "githops-core/Cargo.toml", "graphui/Cargo.toml"]:
+              text = pathlib.Path(p).read_text()
+              text = re.sub(r'^version = "[^"]*"', f'version = "{version}"', text, count=1, flags=re.M)
+              pathlib.Path(p).write_text(text)
 
       # ── Node / pnpm ──────────────────────────────────────────────────────
       - name: Install pnpm
@@ -52,7 +121,7 @@ jobs:
       - name: Install UI dependencies
         run: pnpm --dir graphui/ui install --frozen-lockfile
 
-      # For cross (Docker), build.rs can't run pnpm — pre-build dist/ now.
+      # For cross (Docker) builds, dist/ must exist before cargo runs.
       - name: Build UI (cross only)
         if: matrix.cross == true
         run: pnpm --dir graphui/ui run build
@@ -68,13 +137,12 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      # ── Install cross for ARM Linux ─────────────────────────────────────
       - name: Install cross
         if: matrix.cross == true
         run: cargo install cross --locked
 
-      # ── Build ───────────────────────────────────────────────────────────
-      - name: Build
+      # ── Compile ─────────────────────────────────────────────────────────
+      - name: Build binary
         shell: bash
         run: |
           if [ "${{ matrix.cross }}" = "true" ]; then
@@ -83,27 +151,119 @@ jobs:
             cargo build --release --target ${{ matrix.target }}
           fi
 
-      # ── Package ─────────────────────────────────────────────────────────
-      - name: Package (Unix)
+      # ── Archive (tar.gz / zip) ───────────────────────────────────────────
+      - name: Create tar.gz
         if: matrix.archive == 'tar.gz'
         shell: bash
         run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
           BIN="target/${{ matrix.target }}/release/githops"
-          ARCHIVE="githops-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"
-          tar czf "$ARCHIVE" -C "$(dirname "$BIN")" "$(basename "$BIN")"
-          echo "ASSET=$ARCHIVE" >> "$GITHUB_ENV"
+          tar czf "githops-${TAG}-${{ matrix.target }}.tar.gz" \
+            -C "$(dirname "$BIN")" "$(basename "$BIN")"
 
-      - name: Package (Windows)
+      - name: Create zip
         if: matrix.archive == 'zip'
         shell: pwsh
         run: |
-          $bin  = "target\${{ matrix.target }}\release\githops.exe"
-          $name = "githops-${{ github.ref_name }}-${{ matrix.target }}.zip"
-          Compress-Archive -Path $bin -DestinationPath $name
-          "ASSET=$name" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $tag = "${{ needs.prepare.outputs.tag }}"
+          Compress-Archive `
+            -Path "target\${{ matrix.target }}\release\githops.exe" `
+            -DestinationPath "githops-${tag}-${{ matrix.target }}.zip"
 
-      # ── Upload to GitHub Release ─────────────────────────────────────────
-      - uses: softprops/action-gh-release@v2
+      # ── macOS PKG installer ──────────────────────────────────────────────
+      - name: Create macOS PKG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          BIN="target/${{ matrix.target }}/release/githops"
+          mkdir -p pkg-root/usr/local/bin
+          cp "$BIN" pkg-root/usr/local/bin/githops
+          pkgbuild \
+            --root pkg-root \
+            --identifier com.vitalics.githops \
+            --version "$VERSION" \
+            --install-location "/" \
+            "githops-${TAG}-${{ matrix.target }}.pkg"
+
+      # ── macOS DMG ────────────────────────────────────────────────────────
+      - name: Create macOS DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          BIN="target/${{ matrix.target }}/release/githops"
+          mkdir dmg-staging
+          cp "$BIN" dmg-staging/githops
+          printf 'Run the .pkg installer for automatic PATH setup, or:\n  sudo cp githops /usr/local/bin/\n' \
+            > dmg-staging/INSTALL.txt
+          hdiutil create \
+            -srcfolder dmg-staging \
+            -volname "githops ${TAG}" \
+            -format UDZO \
+            -o "githops-${TAG}-${{ matrix.target }}.dmg"
+
+      # ── Windows MSI installer ────────────────────────────────────────────
+      - name: Install cargo-wix
+        if: runner.os == 'Windows'
+        run: cargo install cargo-wix --locked
+
+      - name: Create Windows MSI
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tag = "${{ needs.prepare.outputs.tag }}"
+          cargo wix --target x86_64-pc-windows-msvc --profile release --no-build --nocapture
+          $msi  = Get-ChildItem "target\wix\*.msi" | Select-Object -First 1
+          Move-Item $msi.FullName "githops-${tag}-x86_64-pc-windows-msvc.msi"
+
+      # ── Collect and upload all dist files ────────────────────────────────
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          for f in githops-*.tar.gz githops-*.zip githops-*.pkg githops-*.dmg githops-*.msi; do
+            [ -f "$f" ] && cp "$f" dist/ || true
+          done
+
+      - uses: actions/upload-artifact@v4
         with:
-          files: ${{ env.ASSET }}
-          generate_release_notes: true
+          name: dist-${{ matrix.target }}
+          path: dist/
+          if-no-files-found: error
+
+  # ── 3. Release ──────────────────────────────────────────────────────────────
+  # Downloads all artifacts, generates the release body, publishes once.
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          sparse-checkout: scripts/release.py
+          sparse-checkout-cone-mode: false
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Generate release body
+        env:
+          CHANGELOG:       ${{ needs.prepare.outputs.changelog }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_TAG:     ${{ needs.prepare.outputs.tag }}
+          RELEASE_REPO:    ${{ github.repository }}
+        run: python3 scripts/release.py
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name:  ${{ needs.prepare.outputs.tag }}
+          name:      "githops ${{ needs.prepare.outputs.tag }}"
+          body_path: release-body.md
+          files:     dist/*
