@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+@theme {
+  --color-canvas: #080818;
+  --color-surface: #0e0e1e;
+  --color-border: #1a1a2e;
+  --color-accent: #00d4aa;
+  --color-accent-dim: #00d4aa44;
+  --color-muted: #555;
+  --color-text: #c8c8e0;
+  --font-mono: "SF Mono", "Fira Code", monospace;
+}
+
+/* React Flow dark overrides */
+.react-flow {
+  background: var(--color-canvas);
+}
+.react-flow__background {
+  --xy-background-color: var(--color-canvas);
+  --xy-background-pattern-color: #1a1a2e;
+}
+.react-flow__minimap {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+.react-flow__controls {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  fill: var(--color-muted);
+}
+.react-flow__controls-button:hover {
+  background: var(--color-border);
+  fill: var(--color-text);
+}
+.react-flow__edge-path {
+  stroke: var(--color-accent-dim);
+}

@@ -1,0 +1,15 @@
+[package]
+name = "graphui"
+version = "0.1.0"
+edition = "2024"
+description = "Web UI for githops graph command (React + Vite)"
+build = "build.rs"
+
+[dependencies]
+githops-core = { path = "../githops-core" }
+axum = { version = "0.7", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "time"] }
+anyhow = "1"
+colored = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
