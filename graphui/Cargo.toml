@@ -1,5 +1,5 @@
 [package]
-name = "graphui"
+name = "githops-graphui"
 version = "0.1.0"
 edition = "2024"
 description = "Web UI for githops graph command (React + Vite, embedded in binary)"

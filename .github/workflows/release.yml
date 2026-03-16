@@ -296,8 +296,8 @@ jobs:
           files:     dist/*
 
   # ── 4. Distribute ────────────────────────────────────────────────────────────
-  # Publishes to crates.io, npm, and updates the Homebrew tap.
-  # Requires secrets: CARGO_REGISTRY_TOKEN, NPM_TOKEN, HOMEBREW_TAP_TOKEN
+  # Publishes to crates.io and npm.
+  # Requires secrets: CARGO_REGISTRY_TOKEN, NPM_TOKEN
   distribute:
     needs: [prepare, release]
     runs-on: ubuntu-latest
@@ -355,12 +355,12 @@ jobs:
       - name: Wait for githops-core to be indexed
         run: sleep 30
 
-      - name: Publish graphui
+      - name: Publish githops-graphui
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p graphui --allow-dirty
+        run: cargo publish -p githops-graphui --allow-dirty
 
-      - name: Wait for graphui to be indexed
+      - name: Wait for githops-graphui to be indexed
         run: sleep 30
 
       - name: Publish githops
