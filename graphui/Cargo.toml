@@ -1,6 +1,6 @@
 [package]
 name = "githops-graphui"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2024"
 description = "Web UI for githops graph command (React + Vite, embedded in binary)"
 authors = ["Vitali Haradkou <vitalics@gmail.com>"]
@@ -11,7 +11,7 @@ license = "MIT"
 include = ["src/**/*", "ui/dist/**/*", "build.rs", "Cargo.toml"]
 
 [dependencies]
-githops-core = { path = "../githops-core", version = "0.6.0" }
+githops-core = { path = "../githops-core", version = "0.6.1" }
 axum = { version = "0.7", features = ["ws"] }
 tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "time"] }
 anyhow = "1"

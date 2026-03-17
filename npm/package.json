@@ -1,6 +1,6 @@
 {
   "name": "githops",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Git hooks manager with YAML configuration",
   "keywords": [
     "git",
