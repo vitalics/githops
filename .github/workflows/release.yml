@@ -116,20 +116,7 @@ jobs:
 
       # ── Stamp version into all Cargo.toml files ──────────────────────────
       - name: Stamp version
-        shell: python3 {0}
-        run: |
-          import re, pathlib
-          version = "${{ needs.prepare.outputs.version }}"
-          for p in ["Cargo.toml", "githops-core/Cargo.toml", "graphui/Cargo.toml"]:
-              text = pathlib.Path(p).read_text()
-              text = re.sub(r'^version = "[^"]*"', f'version = "{version}"', text, count=1, flags=re.M)
-              pathlib.Path(p).write_text(text)
-          # Keep path-dep version constraints in sync
-          for p in ["Cargo.toml", "graphui/Cargo.toml"]:
-              text = pathlib.Path(p).read_text()
-              text = re.sub(r'(githops-core\s*=\s*\{[^}]*version\s*=\s*")[^"]*(")', rf'\g<1>{version}\g<2>', text)
-              text = re.sub(r'(graphui\s*=\s*\{[^}]*version\s*=\s*")[^"]*(")', rf'\g<1>{version}\g<2>', text)
-              pathlib.Path(p).write_text(text)
+        run: python3 scripts/stamp-version.py "${{ needs.prepare.outputs.version }}"
 
       # ── Node / pnpm ──────────────────────────────────────────────────────
       - name: Install pnpm
@@ -140,7 +127,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: graphui/ui/pnpm-lock.yaml
 
@@ -308,20 +295,7 @@ jobs:
 
       # ── Stamp version ──────────────────────────────────────────────────────
       - name: Stamp version
-        shell: python3 {0}
-        run: |
-          import re, pathlib
-          version = "${{ needs.prepare.outputs.version }}"
-          for p in ["Cargo.toml", "githops-core/Cargo.toml", "graphui/Cargo.toml"]:
-              text = pathlib.Path(p).read_text()
-              text = re.sub(r'^version = "[^"]*"', f'version = "{version}"', text, count=1, flags=re.M)
-              pathlib.Path(p).write_text(text)
-          # Keep path-dep version constraints in sync
-          for p in ["Cargo.toml", "graphui/Cargo.toml"]:
-              text = pathlib.Path(p).read_text()
-              text = re.sub(r'(githops-core\s*=\s*\{[^}]*version\s*=\s*")[^"]*(")', rf'\g<1>{version}\g<2>', text)
-              text = re.sub(r'(graphui\s*=\s*\{[^}]*version\s*=\s*")[^"]*(")', rf'\g<1>{version}\g<2>', text)
-              pathlib.Path(p).write_text(text)
+        run: python3 scripts/stamp-version.py "${{ needs.prepare.outputs.version }}"
 
       # ── Node / pnpm (needed to build graphui for cargo publish) ───────────
       - name: Install pnpm
@@ -332,7 +306,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: graphui/ui/pnpm-lock.yaml
 
@@ -372,22 +346,13 @@ jobs:
       - name: Set up Node.js for npm publish
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           registry-url: "https://registry.npmjs.org"
 
       - name: Stamp npm package version
-        run: |
-          VERSION="${{ needs.prepare.outputs.version }}"
-          cd npm
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = process.argv[1];
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          " "$VERSION"
+        run: node scripts/stamp-npm-version.js "${{ needs.prepare.outputs.version }}"
 
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: cd npm && npm publish --access public
-
