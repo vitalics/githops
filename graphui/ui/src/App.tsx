@@ -5,18 +5,20 @@ import { HookPanel } from "./components/HookPanel";
 import { CommandsPanel } from "./components/CommandsPanel";
 import { DefinitionsPanel } from "./components/DefinitionsPanel";
 import { CachePanel } from "./components/CachePanel";
+import { IncludesPanel } from "./components/IncludesPanel";
 import { useGithopsWs } from "./hooks/useGithopsWs";
 import { t, currentLanguage, setLanguage } from "./i18n";
 import { Button } from "./components/ui/button";
 
-type Tab = "hooks" | "commands" | "definitions" | "flow" | "cache";
+type Tab = "hooks" | "commands" | "definitions" | "includes" | "flow" | "cache";
 
-const TABS: Tab[] = ["hooks", "commands", "definitions", "flow", "cache"];
+const TABS: Tab[] = ["hooks", "commands", "definitions", "includes", "flow", "cache"];
 
 const TAB_LABELS: Record<Tab, string> = {
   hooks: "hooks",
   commands: "commands",
   definitions: "definitions",
+  includes: "includes",
   flow: "flow",
   cache: "cache",
 };
@@ -122,6 +124,7 @@ export default function App() {
             <HookPanel
               hooks={appState.hooks}
               definitions={appState.definitions}
+              includes={appState.includes ?? []}
               send={send}
               onNavigateToDefs={navigateToDefs}
             />
@@ -137,6 +140,10 @@ export default function App() {
               send={send}
               navTarget={defNavTarget}
             />
+          </div>
+        ) : tab === "includes" ? (
+          <div className="h-full overflow-hidden">
+            <IncludesPanel includes={appState.includes ?? []} send={send} />
           </div>
         ) : tab === "flow" ? (
           <div className="h-full">

@@ -134,7 +134,8 @@ fn write_completion(shell: Shell) -> Result<PathBuf> {
         "githops",
         &mut buf,
     );
-    std::fs::write(&path, &buf).with_context(|| format!("writing {}", path.display()))?;
+    let script = crate::cli::patch_completion(shell, &buf);
+    std::fs::write(&path, script.as_bytes()).with_context(|| format!("writing {}", path.display()))?;
     Ok(path)
 }
 

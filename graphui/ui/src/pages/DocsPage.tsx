@@ -15,6 +15,7 @@ import enTemplates from "@docs/en/features-templates.md?raw";
 import enParallelization from "@docs/en/features-parallelization.md?raw";
 import enGraphUi from "@docs/en/features-graph-ui.md?raw";
 import enCaching from "@docs/en/features-caching.md?raw";
+import enIncludes from "@docs/en/features-includes.md?raw";
 import enMigration from "@docs/en/migration.md?raw";
 import enUpgrading from "@docs/en/upgrading.md?raw";
 
@@ -26,6 +27,7 @@ import ruTemplates from "@docs/ru/features-templates.md?raw";
 import ruParallelization from "@docs/ru/features-parallelization.md?raw";
 import ruGraphUi from "@docs/ru/features-graph-ui.md?raw";
 import ruCaching from "@docs/ru/features-caching.md?raw";
+import ruIncludes from "@docs/ru/features-includes.md?raw";
 import ruMigration from "@docs/ru/migration.md?raw";
 import ruUpgrading from "@docs/ru/upgrading.md?raw";
 
@@ -50,6 +52,7 @@ const NAV: NavItem[] = [
       { slug: "parallelization", label: { en: "Parallelization", ru: "Параллелизация" } },
       { slug: "graph-ui", label: { en: "Graph UI", ru: "Визуальный граф" } },
       { slug: "caching", label: { en: "Caching", ru: "Кэширование" } },
+      { slug: "includes", label: { en: "External Includes", ru: "Внешние импорты" } },
     ],
   },
   { slug: "migration", label: { en: "Migration Guide", ru: "Миграция" } },
@@ -67,6 +70,7 @@ const CONTENT: Record<string, { en: string; ru: string }> = {
   parallelization: { en: enParallelization, ru: ruParallelization },
   "graph-ui": { en: enGraphUi, ru: ruGraphUi },
   caching: { en: enCaching, ru: ruCaching },
+  "includes": { en: enIncludes, ru: ruIncludes },
   migration: { en: enMigration, ru: ruMigration },
   upgrading: { en: enUpgrading, ru: ruUpgrading },
 };
@@ -194,7 +198,7 @@ export function DocsPage() {
         </nav>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto px-10 py-8 max-w-3xl">
+        <main className="flex-1 overflow-y-auto px-10 py-8 max-w-4xl">
           {content ? (
             <Prose markdown={content[lang]} />
           ) : (

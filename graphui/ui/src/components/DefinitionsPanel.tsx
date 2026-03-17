@@ -213,7 +213,7 @@ function DefEditor({
   const cmdNames = cmds.map((c) => c.name).filter(Boolean);
 
   return (
-    <div className="p-5 max-w-2xl space-y-4">
+    <div className="p-5 max-w-4xl space-y-4">
       {/* Name */}
       <Field>
         <Label>{t("def_name")}</Label>

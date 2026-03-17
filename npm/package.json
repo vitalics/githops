@@ -14,11 +14,16 @@
     "githops": "./bin/githops.js"
   },
   "scripts": {
-    "postinstall": "node install.js"
+    "postinstall": "node install.js",
+    "prepublishOnly": "node prepublish.js"
   },
   "files": [
     "bin/githops.js",
-    "install.js"
+    "install.js",
+    "prepublish.js",
+    "LICENSE",
+    "README.md",
+    "docs"
   ],
   "engines": {
     "node": ">=18"

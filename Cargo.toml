@@ -53,3 +53,6 @@ anyhow = "1"
 colored = "2"
 githops-core = { path = "githops-core", version = "0.1.0" }
 graphui = { package = "githops-graphui", path = "graphui", version = "0.1.0" }
+
+[dev-dependencies]
+tempfile = "3"

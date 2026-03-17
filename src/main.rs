@@ -2,9 +2,11 @@ use anyhow::Result;
 use clap::Parser;
 use githops::cli::{generate_completion, CacheAction, Cli, Commands, CompletionsAction, SchemaAction};
 use githops::commands;
+use githops::logger;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    logger::init(cli.verbose, cli.verbose_template.clone());
     match cli.command {
         Commands::Init => commands::init::run(),
         Commands::Sync { force } => commands::sync::run(force),
@@ -28,5 +30,6 @@ fn main() -> Result<()> {
             CacheAction::Clear => commands::cache::clear(),
             CacheAction::List => commands::cache::list(),
         },
+        Commands::ListHooks => commands::list_hooks::run(),
     }
 }
