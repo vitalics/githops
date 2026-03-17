@@ -120,3 +120,216 @@ fn make_executable(path: &Path) -> Result<()> {
 fn make_executable(_path: &Path) -> Result<()> {
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{Command, CommandEntry, Config, HookConfig};
+    use std::collections::BTreeMap;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_build_hook_script_contains_marker() {
+        let script = build_hook_script("pre-commit", 3);
+        assert!(script.contains("GITHOPS_MANAGED"));
+    }
+
+    #[test]
+    fn test_build_hook_script_contains_hook_name() {
+        let script = build_hook_script("commit-msg", 1);
+        assert!(script.contains("commit-msg"));
+    }
+
+    #[test]
+    fn test_build_hook_script_has_shebang() {
+        let script = build_hook_script("pre-push", 2);
+        assert!(script.starts_with("#!/"));
+    }
+
+    #[test]
+    fn test_build_hook_script_calls_githops_check() {
+        let script = build_hook_script("pre-commit", 1);
+        assert!(script.contains("githops check"));
+    }
+
+    #[test]
+    fn test_sync_creates_hook_files() {
+        let dir = TempDir::new().unwrap();
+        let mut config = Config::default();
+        config.hooks.pre_commit = Some(HookConfig {
+            enabled: true,
+            parallel: false,
+            commands: vec![CommandEntry::Inline(Command {
+                name: "lint".into(),
+                run: "echo lint".into(),
+                depends: vec![],
+                env: BTreeMap::new(),
+                test: false,
+                cache: None,
+            })],
+        });
+
+        let (installed, skipped) = sync_to_hooks(&config, dir.path(), false).unwrap();
+        assert_eq!(installed, 1);
+        assert_eq!(skipped, 0);
+        assert!(dir.path().join("pre-commit").exists());
+    }
+
+    #[test]
+    fn test_sync_hook_script_content_is_correct() {
+        let dir = TempDir::new().unwrap();
+        let mut config = Config::default();
+        config.hooks.pre_commit = Some(HookConfig {
+            enabled: true,
+            parallel: false,
+            commands: vec![CommandEntry::Inline(Command {
+                name: "lint".into(),
+                run: "echo lint".into(),
+                depends: vec![],
+                env: BTreeMap::new(),
+                test: false,
+                cache: None,
+            })],
+        });
+
+        sync_to_hooks(&config, dir.path(), false).unwrap();
+        let content = std::fs::read_to_string(dir.path().join("pre-commit")).unwrap();
+        assert!(content.contains("GITHOPS_MANAGED"));
+        assert!(content.contains("pre-commit"));
+    }
+
+    #[test]
+    fn test_sync_skips_disabled_hook() {
+        let dir = TempDir::new().unwrap();
+        let mut config = Config::default();
+        config.hooks.pre_commit = Some(HookConfig {
+            enabled: false, // disabled
+            parallel: false,
+            commands: vec![CommandEntry::Inline(Command {
+                name: "lint".into(),
+                run: "echo lint".into(),
+                depends: vec![],
+                env: BTreeMap::new(),
+                test: false,
+                cache: None,
+            })],
+        });
+
+        let (installed, _skipped) = sync_to_hooks(&config, dir.path(), false).unwrap();
+        assert_eq!(installed, 0);
+        assert!(!dir.path().join("pre-commit").exists());
+    }
+
+    #[test]
+    fn test_sync_skips_test_only_commands() {
+        let dir = TempDir::new().unwrap();
+        let mut config = Config::default();
+        config.hooks.pre_commit = Some(HookConfig {
+            enabled: true,
+            parallel: false,
+            commands: vec![CommandEntry::Inline(Command {
+                name: "lint".into(),
+                run: "echo lint".into(),
+                depends: vec![],
+                env: BTreeMap::new(),
+                test: true, // test-only, should not create hook
+                cache: None,
+            })],
+        });
+
+        let (installed, _) = sync_to_hooks(&config, dir.path(), false).unwrap();
+        assert_eq!(installed, 0);
+    }
+
+    #[test]
+    fn test_sync_does_not_overwrite_unmanaged_hook() {
+        let dir = TempDir::new().unwrap();
+        // Write an unmanaged hook (no GITHOPS_MANAGED marker)
+        std::fs::write(dir.path().join("pre-commit"), "#!/bin/sh\necho manual").unwrap();
+
+        let mut config = Config::default();
+        config.hooks.pre_commit = Some(HookConfig {
+            enabled: true,
+            parallel: false,
+            commands: vec![CommandEntry::Inline(Command {
+                name: "lint".into(),
+                run: "echo lint".into(),
+                depends: vec![],
+                env: BTreeMap::new(),
+                test: false,
+                cache: None,
+            })],
+        });
+
+        let (_installed, skipped) = sync_to_hooks(&config, dir.path(), false).unwrap();
+        assert_eq!(skipped, 1);
+        // Original content preserved
+        let content = std::fs::read_to_string(dir.path().join("pre-commit")).unwrap();
+        assert!(content.contains("manual"));
+    }
+
+    #[test]
+    fn test_sync_force_overwrites_unmanaged_hook() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("pre-commit"), "#!/bin/sh\necho manual").unwrap();
+
+        let mut config = Config::default();
+        config.hooks.pre_commit = Some(HookConfig {
+            enabled: true,
+            parallel: false,
+            commands: vec![CommandEntry::Inline(Command {
+                name: "lint".into(),
+                run: "echo lint".into(),
+                depends: vec![],
+                env: BTreeMap::new(),
+                test: false,
+                cache: None,
+            })],
+        });
+
+        let (installed, _) = sync_to_hooks(&config, dir.path(), true).unwrap();
+        assert_eq!(installed, 1);
+        let content = std::fs::read_to_string(dir.path().join("pre-commit")).unwrap();
+        assert!(content.contains("GITHOPS_MANAGED"));
+    }
+
+    #[test]
+    fn test_sync_removes_obsolete_managed_hook() {
+        let dir = TempDir::new().unwrap();
+        // Write a managed hook that is no longer configured
+        let managed_content =
+            "#!/bin/sh\n# GITHOPS_MANAGED\nexec githops check pre-commit \"$@\"\n";
+        std::fs::write(dir.path().join("pre-commit"), managed_content).unwrap();
+
+        // Config has no pre-commit hook
+        let config = Config::default();
+
+        sync_to_hooks(&config, dir.path(), false).unwrap();
+        // Managed hook should be removed
+        assert!(!dir.path().join("pre-commit").exists());
+    }
+
+    #[test]
+    fn test_sync_is_idempotent() {
+        let dir = TempDir::new().unwrap();
+        let mut config = Config::default();
+        config.hooks.pre_commit = Some(HookConfig {
+            enabled: true,
+            parallel: false,
+            commands: vec![CommandEntry::Inline(Command {
+                name: "lint".into(),
+                run: "echo lint".into(),
+                depends: vec![],
+                env: BTreeMap::new(),
+                test: false,
+                cache: None,
+            })],
+        });
+
+        sync_to_hooks(&config, dir.path(), false).unwrap();
+        let content1 = std::fs::read_to_string(dir.path().join("pre-commit")).unwrap();
+        sync_to_hooks(&config, dir.path(), false).unwrap();
+        let content2 = std::fs::read_to_string(dir.path().join("pre-commit")).unwrap();
+        assert_eq!(content1, content2);
+    }
+}

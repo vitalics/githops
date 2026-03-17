@@ -1,27 +1,20 @@
 name: Release
 
-# Triggered by a version tag push OR manually by choosing a bump type.
+# Triggered by a version tag push (created by the Bump workflow).
+# Builds platform binaries, publishes a GitHub Release, then distributes
+# to crates.io and npm.
 on:
   push:
     tags:
       - 'v[0-9]*'
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: 'Version bump type'
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
 
 permissions:
   contents: write
 
 jobs:
   # ── 1. Prepare ─────────────────────────────────────────────────────────────
-  # Creates the git tag (manual runs only), resolves version, builds changelog.
+  # Resolves the version from the tag and builds the changelog.
+  # Version is already stamped in Cargo.toml by the Bump workflow.
   prepare:
     runs-on: ubuntu-latest
     outputs:
@@ -31,41 +24,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # full history for changelog
+          fetch-depth: 0
 
-      - name: Resolve version
+      - name: Resolve version from tag
         id: meta
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # Read last tag, then bump the chosen component
-            LATEST=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-            LATEST="${LATEST#v}"
-            IFS='.' read -r -a parts <<< "$LATEST"
-            MAJOR="${parts[0]:-0}"
-            MINOR="${parts[1]:-0}"
-            PATCH="${parts[2]:-0}"
-            case "${{ inputs.bump }}" in
-              major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
-              minor) MINOR=$((MINOR+1)); PATCH=0 ;;
-              patch) PATCH=$((PATCH+1)) ;;
-            esac
-            VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          else
-            VERSION="${GITHUB_REF_NAME#v}"
-            # Normalize to major.minor.patch (Cargo requires all three components)
-            IFS='.' read -r -a parts <<< "$VERSION"
-            VERSION="${parts[0]:-0}.${parts[1]:-0}.${parts[2]:-0}"
-          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Normalize to major.minor.patch (Cargo requires all three components)
+          IFS='.' read -r -a parts <<< "$VERSION"
+          VERSION="${parts[0]:-0}.${parts[1]:-0}.${parts[2]:-0}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
-
-      - name: Create and push tag
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.meta.outputs.tag }}"
-          git push origin "${{ steps.meta.outputs.tag }}"
 
       - name: Generate changelog
         id: changelog
@@ -113,10 +82,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.tag }}
-
-      # ── Stamp version into all Cargo.toml files ──────────────────────────
-      - name: Stamp version
-        run: python3 scripts/stamp-version.py "${{ needs.prepare.outputs.version }}"
 
       # ── Node / pnpm ──────────────────────────────────────────────────────
       - name: Install pnpm
@@ -284,6 +249,7 @@ jobs:
 
   # ── 4. Distribute ────────────────────────────────────────────────────────────
   # Publishes to crates.io and npm.
+  # Version is already stamped in Cargo.toml/package.json by the Bump workflow.
   # Requires secrets: CARGO_REGISTRY_TOKEN, NPM_TOKEN
   distribute:
     needs: [prepare, release]
@@ -292,10 +258,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.tag }}
-
-      # ── Stamp version ──────────────────────────────────────────────────────
-      - name: Stamp version
-        run: python3 scripts/stamp-version.py "${{ needs.prepare.outputs.version }}"
 
       # ── Node / pnpm (needed to build graphui for cargo publish) ───────────
       - name: Install pnpm
@@ -348,9 +310,6 @@ jobs:
         with:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
-
-      - name: Stamp npm package version
-        run: node scripts/stamp-npm-version.js "${{ needs.prepare.outputs.version }}"
 
       - name: Publish to npm
         env:

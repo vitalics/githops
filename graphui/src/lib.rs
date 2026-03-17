@@ -16,8 +16,9 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use githops_core::config::{
-    Command, CommandCache, CommandEntry, Config, DefinitionEntry, GlobalCache, HookConfig, RefEntry,
-    CONFIG_FILE,
+    Command, CommandCache, CommandEntry, Config, DefinitionEntry, GlobalCache, HookConfig,
+    GitInclude, IncludeEntry, IncludeRef, IncludeType, LocalInclude, RefEntry,
+    RemoteInclude, resolve_include_entry, CONFIG_FILE,
 };
 use githops_core::git::hooks_dir;
 use githops_core::hooks::ALL_HOOKS;
@@ -233,6 +234,86 @@ fn handle_ws_request(
             api_update(&body, config_path)?;
             Ok(serde_json::json!({ "ok": true }))
         }
+        "include.update" => {
+            #[derive(serde::Deserialize)]
+            struct IncludeUpdateParams {
+                #[serde(default, rename = "oldRef")]
+                old_ref: String,
+                #[serde(rename = "ref")]
+                ref_name: String,
+                source: String,  // "local" | "remote" | "git"
+                // local fields
+                #[serde(default)]
+                path: String,
+                // remote fields
+                #[serde(default)]
+                url: String,
+                // git fields
+                #[serde(default)]
+                rev: String,
+                #[serde(default)]
+                file: String,
+                // shared
+                #[serde(rename = "type", default)]
+                file_type: String,
+            }
+            let p: IncludeUpdateParams = serde_json::from_value(params)?;
+            let mut config = if config_path.exists() {
+                Config::load(config_path)?
+            } else {
+                Config::default()
+            };
+            let ft = match p.file_type.as_str() {
+                "json"  => IncludeType::Json,
+                "toml"  => IncludeType::Toml,
+                _       => IncludeType::Yaml,
+            };
+            let new_entry = match p.source.as_str() {
+                "remote" => IncludeEntry::Remote(RemoteInclude {
+                    url: p.url,
+                    file_type: ft,
+                    ref_name: p.ref_name.clone(),
+                }),
+                "git" => IncludeEntry::Git(GitInclude {
+                    url: p.url,
+                    rev: p.rev,
+                    file: p.file,
+                    file_type: ft,
+                    ref_name: p.ref_name.clone(),
+                }),
+                _ => IncludeEntry::Local(LocalInclude {
+                    path: p.path,
+                    file_type: ft,
+                    ref_name: p.ref_name.clone(),
+                }),
+            };
+            if !p.old_ref.is_empty() {
+                if let Some(pos) = config.include.iter().position(|e| e.ref_name() == p.old_ref) {
+                    config.include[pos] = new_entry;
+                } else {
+                    config.include.push(new_entry);
+                }
+            } else {
+                config.include.push(new_entry);
+            }
+            config.save(config_path)?;
+            Ok(serde_json::json!({ "ok": true }))
+        }
+        "include.delete" => {
+            let ref_name = params
+                .get("ref")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let mut config = if config_path.exists() {
+                Config::load(config_path)?
+            } else {
+                Config::default()
+            };
+            config.include.retain(|e| e.ref_name() != ref_name);
+            config.save(config_path)?;
+            Ok(serde_json::json!({ "ok": true }))
+        }
         "sync" => {
             let msg = api_sync(config_path)?;
             Ok(serde_json::json!({ "ok": true, "message": msg }))
@@ -333,6 +414,29 @@ fn api_state(config_path: &Path) -> Result<String> {
                     c.commands
                         .iter()
                         .map(|entry| match entry {
+                            CommandEntry::Include(inc) => {
+                                let resolved_run = resolve_include_entry(inc, &config.include)
+                                    .map(|cmd| cmd.run)
+                                    .unwrap_or_default();
+                                let display_name = inc.name.as_deref().unwrap_or_else(|| {
+                                    inc.run.split('.').last().unwrap_or(inc.run.as_str())
+                                });
+                                serde_json::json!({
+                                    "isRef":       false,
+                                    "isInclude":   true,
+                                    "includeRef":  inc.include_ref,
+                                    "includePath": inc.run,
+                                    "args":        inc.args.as_deref().unwrap_or(""),
+                                    "name":        display_name,
+                                    "nameOverride": inc.name.as_deref().unwrap_or(""),
+                                    "run":         resolved_run,
+                                    "refName":     "",
+                                    "refArgs":     "",
+                                    "depends":     [],
+                                    "env":         inc.env,
+                                    "test":        false,
+                                })
+                            }
                             CommandEntry::Ref(r) => {
                                 let (def_name, def_run) = config
                                     .definitions
@@ -453,10 +557,36 @@ fn api_state(config_path: &Path) -> Result<String> {
         })
         .collect();
 
+    let includes: Vec<serde_json::Value> = config.include.iter().map(|e| {
+        match e {
+            IncludeEntry::Local(l) => serde_json::json!({
+                "source": "local",
+                "ref":  l.ref_name,
+                "path": l.path,
+                "type": match l.file_type { IncludeType::Json => "json", IncludeType::Toml => "toml", IncludeType::Yaml => "yaml" },
+            }),
+            IncludeEntry::Remote(r) => serde_json::json!({
+                "source": "remote",
+                "ref":  r.ref_name,
+                "url":  r.url,
+                "type": match r.file_type { IncludeType::Json => "json", IncludeType::Toml => "toml", IncludeType::Yaml => "yaml" },
+            }),
+            IncludeEntry::Git(g) => serde_json::json!({
+                "source": "git",
+                "ref":  g.ref_name,
+                "url":  g.url,
+                "rev":  g.rev,
+                "file": g.file,
+                "type": match g.file_type { IncludeType::Json => "json", IncludeType::Toml => "toml", IncludeType::Yaml => "yaml" },
+            }),
+        }
+    }).collect();
+
     Ok(serde_json::to_string(&serde_json::json!({
         "hooks":        hook_states,
         "commands":     unique_commands,
         "definitions":  definitions,
+        "includes":     includes,
         "configExists": config_path.exists(),
         "cacheStatus": {
             "enabled": config.cache.enabled,
@@ -528,6 +658,16 @@ struct CommandDto {
     name_override: String,
     #[serde(default)]
     cache: Option<CommandCacheDto>,
+    #[serde(default, rename = "isInclude")]
+    is_include: bool,
+    #[serde(default, rename = "includeRef", deserialize_with = "null_as_default")]
+    include_ref: String,
+    /// Dot-notation path into the included file.
+    #[serde(default, rename = "includePath", deserialize_with = "null_as_default")]
+    include_path: String,
+    /// Extra CLI arguments for an include entry (client sends "args", not "refArgs").
+    #[serde(default, rename = "args", deserialize_with = "null_as_default")]
+    include_args: String,
 }
 
 impl CommandDto {
@@ -546,7 +686,15 @@ impl CommandDto {
         }
     }
     fn into_entry(self) -> CommandEntry {
-        if self.is_ref {
+        if self.is_include {
+            CommandEntry::Include(IncludeRef {
+                include_ref: self.include_ref,
+                run: self.include_path,
+                args: if self.include_args.is_empty() { None } else { Some(self.include_args) },
+                env: self.env.clone(),
+                name: if self.name_override.is_empty() { None } else { Some(self.name_override) },
+            })
+        } else if self.is_ref {
             CommandEntry::Ref(RefEntry {
                 r#ref: self.ref_name,
                 args: if self.ref_args.is_empty() { None } else { Some(self.ref_args) },

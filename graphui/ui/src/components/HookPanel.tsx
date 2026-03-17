@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import type { CommandCacheConfig, CommandEntry, DefinitionEntry, HookState } from "../types";
+import type { CommandCacheConfig, CommandEntry, DefinitionEntry, HookState, IncludeSource } from "../types";
 import type { WsResult } from "../types";
 import { t } from "../i18n";
 import { Button } from "./ui/button";
@@ -17,11 +17,12 @@ type DraftCmd = CommandEntry & { _key: string };
 type Props = {
   hooks: HookState[];
   definitions: DefinitionEntry[];
+  includes: IncludeSource[];
   send: SendFn;
   onNavigateToDefs: (defName: string) => void;
 };
 
-export function HookPanel({ hooks, definitions, send, onNavigateToDefs }: Props) {
+export function HookPanel({ hooks, definitions, includes, send, onNavigateToDefs }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const isDirtyRef = useRef(false);
 
@@ -73,6 +74,7 @@ export function HookPanel({ hooks, definitions, send, onNavigateToDefs }: Props)
             key={`${hook.name}-${hook.configured}`}
             hook={hook}
             definitions={definitions}
+            includes={includes}
             send={send}
             onDirtyChange={(d) => { isDirtyRef.current = d; }}
             onNavigateToDefs={onNavigateToDefs}
@@ -133,12 +135,14 @@ function HookListItem({
 function HookEditor({
   hook,
   definitions,
+  includes,
   send,
   onDirtyChange,
   onNavigateToDefs,
 }: {
   hook: HookState;
   definitions: DefinitionEntry[];
+  includes: IncludeSource[];
   send: SendFn;
   onDirtyChange: (dirty: boolean) => void;
   onNavigateToDefs: (defName: string) => void;
@@ -190,6 +194,13 @@ function HookEditor({
     setCmds((prev) => [
       ...prev,
       { _key: key, isRef: true, refName, name: refName, run: "", depends: [], env: {}, test: false },
+    ]);
+  }
+  function addInclude(refName: string) {
+    const key = String(keyRef.current++);
+    setCmds((prev) => [
+      ...prev,
+      { _key: key, isRef: false, refName: "", isInclude: true, includeRef: refName, includePath: "", args: "", name: "", run: "", depends: [], env: {}, test: false },
     ]);
   }
 
@@ -252,13 +263,14 @@ function HookEditor({
             total={cmds.length}
             inlineNames={inlineNames}
             definitions={definitions}
+            includes={includes}
             onChange={(patch) => updateCmd(cmd._key, patch)}
             onDelete={() => deleteCmd(cmd._key)}
             onMove={(dir) => moveCmd(cmd._key, dir)}
             onNavigateToDefs={onNavigateToDefs}
           />
         ))}
-        <AddCmdRow definitions={definitions} onAddInline={addInline} onAddRef={addRef} />
+        <AddCmdRow definitions={definitions} includes={includes} onAddInline={addInline} onAddRef={addRef} onAddInclude={addInclude} />
       </div>
 
       {/* Footer */}
@@ -283,6 +295,7 @@ function CmdCard({
   total,
   inlineNames,
   definitions,
+  includes,
   onChange,
   onDelete,
   onMove,
@@ -293,6 +306,7 @@ function CmdCard({
   total: number;
   inlineNames: string[];
   definitions: DefinitionEntry[];
+  includes: IncludeSource[];
   onChange: (patch: Partial<DraftCmd>) => void;
   onDelete: () => void;
   onMove: (dir: -1 | 1) => void;
@@ -322,7 +336,49 @@ function CmdCard({
         >×</button>
       </div>
 
-      {cmd.isRef ? (
+      {cmd.isInclude ? (
+        /* Include entry */
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-[var(--color-muted)] shrink-0">{t("include_ref_label")}:</span>
+            <select
+              value={cmd.includeRef ?? ""}
+              onChange={(e) => onChange({ includeRef: e.target.value })}
+              className="flex-1 bg-[var(--color-canvas)] border border-[var(--color-border)] rounded px-2 py-1 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+            >
+              {includes.map((inc) => (
+                <option key={inc.ref} value={inc.ref}>{inc.ref}</option>
+              ))}
+            </select>
+          </div>
+          <Field>
+            <Label>{t("include_run")}</Label>
+            <Input
+              value={cmd.includePath ?? ""}
+              onChange={(e) => onChange({ includePath: e.target.value })}
+              placeholder="scripts.lint"
+              className="font-mono"
+            />
+          </Field>
+          <Field>
+            <Label>{t("include_args")}</Label>
+            <Input
+              value={cmd.args ?? ""}
+              onChange={(e) => onChange({ args: e.target.value })}
+              placeholder="--fix"
+              className="font-mono"
+            />
+          </Field>
+          <Field>
+            <Label>{t("name")}</Label>
+            <Input
+              value={cmd.name ?? ""}
+              onChange={(e) => onChange({ name: e.target.value })}
+              placeholder={t("name")}
+            />
+          </Field>
+        </div>
+      ) : cmd.isRef ? (
         /* Ref entry */
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -543,14 +599,19 @@ function CacheSection({
 
 function AddCmdRow({
   definitions,
+  includes,
   onAddInline,
   onAddRef,
+  onAddInclude,
 }: {
   definitions: DefinitionEntry[];
+  includes: IncludeSource[];
   onAddInline: () => void;
   onAddRef: (refName: string) => void;
+  onAddInclude: (refName: string) => void;
 }) {
   const [refSel, setRefSel] = useState(definitions[0]?.name ?? "");
+  const [incSel, setIncSel] = useState(includes[0]?.ref ?? "");
 
   return (
     <div className="flex items-center gap-2 pt-1 flex-wrap">
@@ -575,6 +636,27 @@ function AddCmdRow({
           <button
             onClick={() => refSel && onAddRef(refSel)}
             disabled={!refSel}
+            className="px-2 py-0.5 text-xs rounded border border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-40 transition-colors"
+          >
+            +
+          </button>
+        </div>
+      )}
+      {includes.length > 0 && (
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-[var(--color-muted)]">{t("use_include")}</span>
+          <select
+            value={incSel}
+            onChange={(e) => setIncSel(e.target.value)}
+            className="bg-[var(--color-canvas)] border border-[var(--color-border)] rounded px-1.5 py-0.5 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+          >
+            {includes.map((inc) => (
+              <option key={inc.ref} value={inc.ref}>{inc.ref}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => incSel && onAddInclude(incSel)}
+            disabled={!incSel}
             className="px-2 py-0.5 text-xs rounded border border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-40 transition-colors"
           >
             +

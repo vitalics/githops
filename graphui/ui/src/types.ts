@@ -3,6 +3,19 @@ export type CommandCacheConfig = {
   key: string[];
 };
 
+export type IncludeSource = {
+  source: "local" | "remote" | "git";
+  ref: string;
+  type: "json" | "toml" | "yaml";
+  // local
+  path?: string;
+  // remote
+  url?: string;
+  // git
+  rev?: string;
+  file?: string;
+};
+
 export type CommandEntry = {
   isRef: boolean;
   refName: string;
@@ -18,6 +31,12 @@ export type CommandEntry = {
   env: Record<string, string>;
   test: boolean;
   cache?: CommandCacheConfig | null;
+  isInclude?: boolean;
+  includeRef?: string;
+  /** Dot-notation path into the included file (e.g. `scripts.lint`). */
+  includePath?: string;
+  /** Extra CLI arguments appended to the resolved command. */
+  args?: string;
 };
 
 export type HookState = {
@@ -67,6 +86,7 @@ export type AppState = {
   hooks: HookState[];
   commands: UniqueCommand[];
   definitions: DefinitionEntry[];
+  includes: IncludeSource[];
   configExists: boolean;
   cacheStatus: CacheStatus;
 };

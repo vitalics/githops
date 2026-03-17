@@ -3,6 +3,7 @@ pub mod check;
 pub mod completions;
 pub mod destroy;
 pub mod init;
+pub mod list_hooks;
 pub mod migrate;
 pub mod schema;
 pub mod self_update;

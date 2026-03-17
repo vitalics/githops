@@ -1,0 +1,66 @@
+name: Bump version
+
+# Manually triggered: bumps version in all Cargo.toml/package.json files,
+# commits the change to main, then creates and pushes the version tag.
+# The tag push then triggers the Release workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Resolve new version
+        id: meta
+        run: |
+          LATEST=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          LATEST="${LATEST#v}"
+          IFS='.' read -r -a parts <<< "$LATEST"
+          MAJOR="${parts[0]:-0}"
+          MINOR="${parts[1]:-0}"
+          PATCH="${parts[2]:-0}"
+          case "${{ inputs.bump }}" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
+
+      - name: Stamp Cargo.toml versions
+        run: python3 scripts/stamp-version.py "${{ steps.meta.outputs.version }}"
+
+      - name: Stamp npm package version
+        run: node scripts/stamp-npm-version.js "${{ steps.meta.outputs.version }}"
+
+      - name: Commit version bump to main
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml githops-core/Cargo.toml graphui/Cargo.toml npm/package.json
+          git commit -m "chore: bump version to ${{ steps.meta.outputs.tag }}"
+          git push origin main
+
+      - name: Create and push tag
+        run: |
+          git tag "${{ steps.meta.outputs.tag }}"
+          git push origin "${{ steps.meta.outputs.tag }}"

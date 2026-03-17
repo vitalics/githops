@@ -42,7 +42,7 @@ export function CachePanel({ cacheStatus, send }: Props) {
   }
 
   return (
-    <div className="p-5 max-w-2xl space-y-6">
+    <div className="p-5 max-w-4xl space-y-6">
       {/* ── Global config ── */}
       <section className="space-y-3">
         <h2 className="text-sm font-bold text-[var(--color-accent)]">{t("cache_config")}</h2>

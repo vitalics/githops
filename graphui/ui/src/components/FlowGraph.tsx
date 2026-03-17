@@ -77,6 +77,10 @@ type CmdData = {
   label: string;
   run: string;
   isRef: boolean;
+  isInclude?: boolean;
+  includeRef?: string;
+  includePath?: string;
+  includeArgs?: string;
   refName?: string;
   refArgs?: string;
   nameOverride?: string;
@@ -86,6 +90,7 @@ type CmdData = {
 };
 
 function cmdColor(d: CmdData) {
+  if (d.isInclude) return "#f97316"; // orange for include refs
   if (d.hasOverrides) return "#c084fc";
   if (d.isRef) return "#6496ff";
   if (d.test) return "#ff8844";
@@ -368,6 +373,10 @@ type ResolvedCmd = {
   run: string;
   test: boolean;
   isRef: boolean;
+  isInclude?: boolean;
+  includeRef?: string;
+  includePath?: string;
+  includeArgs?: string;
   refName?: string;
   refArgs?: string;
   nameOverride?: string;
@@ -398,6 +407,18 @@ function resolveCommands(hook: HookState, defs: DefinitionEntry[]): ResolvedCmd[
           nameOverride: entry.nameOverride, hasOverrides,
         });
       }
+    } else if (entry.isInclude) {
+      result.push({
+        name: entry.name,
+        run: entry.run,
+        test: false,
+        isRef: false,
+        isInclude: true,
+        includeRef: entry.includeRef,
+        includePath: entry.includePath,
+        includeArgs: entry.args,
+        hasOverrides: false,
+      });
     } else {
       result.push({ name: entry.name, run: entry.run, test: entry.test, isRef: false, hasOverrides: false });
     }
@@ -483,6 +504,10 @@ function buildGraph(
             label: cmd.name,
             run: cmd.run,
             isRef: cmd.isRef,
+            isInclude: cmd.isInclude,
+            includeRef: cmd.includeRef,
+            includePath: cmd.includePath,
+            includeArgs: cmd.includeArgs,
             refName: cmd.refName,
             refArgs: cmd.refArgs,
             nameOverride: cmd.nameOverride,
@@ -565,6 +590,15 @@ function NodeDetailPanel({ data, onClose }: { data: CmdData; onClose: () => void
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           {data.isRef && data.refName && (
             <Row label={t("ref_label")} value={data.refName} color="rgba(100,150,255,0.9)" />
+          )}
+          {data.isInclude && data.includeRef && (
+            <Row label={t("include_ref_label")} value={data.includeRef} color="rgba(249,115,22,0.9)" />
+          )}
+          {data.isInclude && data.includePath && (
+            <Row label={t("include_run")} value={data.includePath} />
+          )}
+          {data.isInclude && data.includeArgs && (
+            <Row label={t("include_args")} value={data.includeArgs} />
           )}
           {data.isRef && data.refArgs ? (
             <>
@@ -972,6 +1006,7 @@ export function FlowGraph({ hooks, definitions, send }: Props) {
             if (n.type === "hookGroup") return "rgba(0,212,170,0.08)";
             if (n.type === "newCmdNode") return "#00d4aa22";
             const d = n.data as Partial<CmdData>;
+            if (d.isInclude) return "#f9731644";
             if (d.hasOverrides) return "#c084fc44";
             if (d.isRef) return "#6496ff44";
             if (d.test) return "#ff884444";
@@ -991,6 +1026,7 @@ export function FlowGraph({ hooks, definitions, send }: Props) {
           <LegendItem color="#ff8844" borderColor="#ff884450" bg="#ff88440d" label={t("legend_test")} />
           <LegendItem color="#6496ff" borderColor="#6496ff55" bg="#6496ff0d" label={t("legend_ref")} />
           <LegendItem color="#c084fc" borderColor="#c084fc55" bg="#c084fc0d" label={t("legend_ref_override")} />
+          <LegendItem color="#f97316" borderColor="#f9731655" bg="#f973160d" label={t("legend_include")} />
           <LegendGroup />
         </div>
         <span className="text-[10px] text-[var(--color-muted)]">{t("flow_hint")}</span>

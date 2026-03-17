@@ -1,18 +1,32 @@
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
 
+/// Default log template used when `--verbose-template` is not specified.
+pub const DEFAULT_VERBOSE_TEMPLATE: &str = "[$t] [$k] ($l) $m";
+
 #[derive(Parser)]
 #[command(
     name = "githops",
     about = "Git hooks manager with YAML configuration",
     long_about = None,
     version,
-    disable_version_flag = true,
 )]
 pub struct Cli {
-    /// Print version information
-    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
-    pub version: (),
+    /// Enable verbose logging.
+    /// Emits structured log lines to stderr for every operation.
+    /// When omitted only INFO and ERROR entries are shown.
+    #[arg(short = 'v', long, global = true)]
+    pub verbose: bool,
+
+    /// Custom log line template.
+    ///
+    /// Tokens: $t (time), $k (kind), $l (layer), $m (message).
+    ///
+    /// Default: "[$t] [$k] ($l) $m"
+    ///
+    /// Example: --verbose-template "$t $k: $m"
+    #[arg(long, global = true, default_value = DEFAULT_VERBOSE_TEMPLATE)]
+    pub verbose_template: String,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -52,6 +66,9 @@ pub enum Commands {
     /// Run commands for a specific hook stage (called by git hooks)
     Check {
         /// Hook stage name (e.g. pre-commit, commit-msg, pre-push)
+        #[arg(value_parser = clap::builder::PossibleValuesParser::new(
+            githops_core::hooks::ALL_HOOKS.iter().map(|h| h.name)
+        ))]
         hook: String,
 
         /// Arguments forwarded from git (e.g. commit message file path)
@@ -83,6 +100,10 @@ pub enum Commands {
         #[command(subcommand)]
         action: CacheAction,
     },
+
+    /// Internal: print configured hook names from local githops.yaml (used by shell completions)
+    #[command(name = "_list-hooks", hide = true)]
+    ListHooks,
 }
 
 #[derive(Subcommand, Clone, Debug)]
@@ -128,5 +149,65 @@ pub enum MigrateSource {
 }
 
 pub fn generate_completion(shell: Shell) {
-    clap_complete::generate(shell, &mut Cli::command(), "githops", &mut std::io::stdout());
+    let mut buf = Vec::new();
+    clap_complete::generate(shell, &mut Cli::command(), "githops", &mut buf);
+    print!("{}", patch_completion(shell, &buf));
+}
+
+/// Patch a generated completion script to use `githops _list-hooks` for dynamic
+/// hook-name completions in `githops check <hook>`.
+pub fn patch_completion(shell: Shell, buf: &[u8]) -> String {
+    let script = String::from_utf8_lossy(buf).into_owned();
+    match shell {
+        Shell::Bash => {
+            let override_block = concat!(
+                "\n# Dynamic hook completion for `githops check <hook>`\n",
+                "__githops_check_hook() {\n",
+                "    local cur=\"${COMP_WORDS[COMP_CWORD]}\"\n",
+                "    if [[ \"${COMP_WORDS[1]}\" == \"check\" && \"${COMP_CWORD}\" -eq 2 ]]; then\n",
+                "        local IFS=$'\\n'\n",
+                "        COMPREPLY=($(compgen -W \"$(githops _list-hooks 2>/dev/null)\" -- \"${cur}\"))\n",
+                "        return 0\n",
+                "    fi\n",
+                "    _githops \"$@\"\n",
+                "}\n",
+                "complete -F __githops_check_hook githops\n",
+            );
+            format!("{script}{override_block}")
+        }
+        Shell::Zsh => {
+            let helper = concat!(
+                "\n# Dynamic hook completion for `githops check <hook>`\n",
+                "__githops_hook_names() {\n",
+                "  local -a hooks\n",
+                "  hooks=(${(f)\"$(githops _list-hooks 2>/dev/null)\"})\n",
+                "  (( ${#hooks[@]} )) && _describe 'git hook' hooks\n",
+                "}\n",
+            );
+            // Replace the static possible-values spec with the dynamic function.
+            // clap_complete 4 zsh generates ':hook -- description:(val1 val2 ...)' for
+            // possible_values. Find the opening ' of the spec and the closing )' and
+            // replace the whole token.
+            let patched = if let Some(start) = script.find("':hook") {
+                if let Some(rel_end) = script[start + 1..].find(")'") {
+                    let end = start + 1 + rel_end + 2;
+                    format!("{}':hook:__githops_hook_names'{}", &script[..start], &script[end..])
+                } else {
+                    script
+                }
+            } else {
+                script
+            };
+            format!("{patched}{helper}")
+        }
+        Shell::Fish => {
+            let extra = concat!(
+                "\n# Dynamic hook completion for 'githops check <hook>'\n",
+                "complete -c githops -n \"__fish_seen_subcommand_from check\" -e\n",
+                "complete -c githops -n \"__fish_seen_subcommand_from check\" -f -a \"(githops _list-hooks 2>/dev/null)\"\n",
+            );
+            format!("{script}{extra}")
+        }
+        _ => script,
+    }
 }
