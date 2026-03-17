@@ -1,8 +1,11 @@
 name: Bump version
 
 # Manually triggered: bumps version in all Cargo.toml/package.json files,
-# commits the change to main, then creates and pushes the version tag.
-# The tag push then triggers the Release workflow.
+# commits the change to main, creates and pushes the version tag, then
+# explicitly calls the Release workflow.
+#
+# Note: GitHub does not trigger workflows from pushes made by GITHUB_TOKEN,
+# so release.yml is invoked via workflow_call instead of relying on the tag push.
 
 on:
   workflow_dispatch:
@@ -22,6 +25,8 @@ permissions:
 jobs:
   bump:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,3 +69,12 @@ jobs:
         run: |
           git tag "${{ steps.meta.outputs.tag }}"
           git push origin "${{ steps.meta.outputs.tag }}"
+
+  # Call release.yml directly — tag pushes by GITHUB_TOKEN do not trigger
+  # other workflows, so we use workflow_call instead.
+  release:
+    needs: bump
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.bump.outputs.tag }}
+    secrets: inherit
